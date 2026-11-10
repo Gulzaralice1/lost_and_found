@@ -72,5 +72,6 @@ Email notifications are optional; leave the `EMAIL_*` values blank to run withou
 
 - User registration and login
 - Lost and found reports with optional image uploads
+- Multi-word item search across titles, descriptions, categories, and locations
 - Item matching and Socket.IO notifications
 - User dashboard and admin management panel

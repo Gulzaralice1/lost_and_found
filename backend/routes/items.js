@@ -5,6 +5,10 @@ const { protect, adminOnly } = require('../middleware/auth');
 const upload = require('../middleware/upload');
 const { findMatches, notifyMatch } = require('../utils/matching');
 
+function escapeRegex(value) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
 // ─────────────────────────────────────────────
 // IMPORTANT: specific named routes MUST come
 // before the /:id wildcard route
@@ -74,20 +78,29 @@ router.post('/', protect, upload.single('image'), async (req, res) => {
 router.get('/', async (req, res) => {
   try {
     const { type, category, location, search, status } = req.query;
+    if (location !== undefined && typeof location !== 'string') {
+      return res.status(400).json({ success: false, message: 'Location filter must be a single value' });
+    }
+    if (search !== undefined && typeof search !== 'string') {
+      return res.status(400).json({ success: false, message: 'Search must be a single value' });
+    }
     let query = {};
 
     if (type) query.type = type;
     if (category) query.category = category;
-    if (location) query.location = { $regex: location, $options: 'i' };
+    if (location && location.trim()) {
+      query.location = { $regex: escapeRegex(location.trim()), $options: 'i' };
+    }
     if (status) query.status = status;
     else query.status = 'active';
 
-    // Only use $text if text index exists and search is provided
-    if (search) {
-      query.$or = [
-        { title: { $regex: search, $options: 'i' } },
-        { description: { $regex: search, $options: 'i' } }
-      ];
+    if (search && search.trim()) {
+      const terms = search.trim().split(/\s+/);
+      query.$and = terms.map((term) => ({
+        $or: ['title', 'description', 'category', 'location'].map((field) => ({
+          [field]: { $regex: escapeRegex(term), $options: 'i' }
+        }))
+      }));
     }
 
     const items = await Item.find(query)
