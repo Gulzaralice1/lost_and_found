@@ -109,7 +109,7 @@ function ItemGrid({ items, loading, error, onOpen }) {
   return <div className="items-grid-modern">{items.map((item) => <ItemCard key={item._id} item={item} onOpen={onOpen} />)}</div>;
 }
 
-function ItemModal({ item, loading, error, onClose }) {
+function ItemModal({ item, loading, error, onClose, canResolve, resolving, onResolve }) {
   useEffect(() => {
     if (!item && !loading && !error) return undefined;
     const closeOnEscape = (event) => {
@@ -134,6 +134,7 @@ function ItemModal({ item, loading, error, onClose }) {
               <div className="item-badges">
                 <span className={`item-badge-modern badge-${item.type}-modern`}>{item.type.toUpperCase()}</span>
                 {item.status === 'matched' && <span className="item-badge-modern badge-matched-modern">✅ MATCHED</span>}
+                {item.status === 'resolved' && <span className="item-badge-modern badge-matched-modern">✅ RESOLVED</span>}
               </div>
               <h2>{item.title}</h2>
             </div>
@@ -156,6 +157,11 @@ function ItemModal({ item, loading, error, onClose }) {
                 <h3><Icon name="link" /> Matched with</h3>
                 <p>{item.matchedWith.title} — {item.matchedWith.type}</p>
               </div>
+            )}
+            {canResolve && item.status !== 'resolved' && (
+              <button className="btn-gradient-large btn-block" type="button" onClick={onResolve} disabled={resolving}>
+                <Icon name={resolving ? 'spinner' : 'check-circle'} /> {resolving ? 'Marking resolved...' : 'Mark as Resolved'}
+              </button>
             )}
           </>}
         </div>
@@ -186,6 +192,7 @@ function SiteApp({ user, token, onSession, onLogout, notify }) {
   const [modalItem, setModalItem] = useState(null);
   const [modalLoading, setModalLoading] = useState(false);
   const [modalError, setModalError] = useState('');
+  const [resolvingItemId, setResolvingItemId] = useState('');
   const [refreshKey, setRefreshKey] = useState(0);
 
   useEffect(() => {
@@ -257,6 +264,21 @@ function SiteApp({ user, token, onSession, onLogout, notify }) {
     setModalError('');
     setModalLoading(false);
   }, []);
+
+  async function resolveItem() {
+    if (!modalItem || !window.confirm(`Mark "${modalItem.title}" as resolved?${modalItem.matchedWith ? ' Its matched listing will also be resolved.' : ''}`)) return;
+    setResolvingItemId(modalItem._id);
+    try {
+      const data = await api(`/items/${modalItem._id}/resolve`, { method: 'PATCH', token });
+      setModalItem(data.item);
+      setRefreshKey((value) => value + 1);
+      notify(data.message, 'success');
+    } catch (error) {
+      notify(error.message, 'error');
+    } finally {
+      setResolvingItemId('');
+    }
+  }
 
   async function submitAuth(event, kind) {
     event.preventDefault();
@@ -355,7 +377,7 @@ function SiteApp({ user, token, onSession, onLogout, notify }) {
 
       {route === '#dashboard' && user && <section id="dashboard" className="section dashboard-modern">
         <div className="container"><SectionHeader icon="chart-line" title={<>My <span className="gradient-text">Dashboard</span></>} subtitle="Track your reported items and matches." />
-          <div className="dashboard-stats-modern"><StatCard icon="box" title="Total Items" value={myItems.length} /><StatCard icon="check-circle" title="Matched Items" value={myItems.filter((item) => item.status === 'matched').length} /><StatCard icon="clock" title="Active Items" value={myItems.filter((item) => item.status === 'active').length} /></div>
+          <div className="dashboard-stats-modern"><StatCard icon="box" title="Total Items" value={myItems.length} /><StatCard icon="check-circle" title="Matched Items" value={myItems.filter((item) => item.status === 'matched').length} /><StatCard icon="clock" title="Active Items" value={myItems.filter((item) => item.status === 'active').length} /><StatCard icon="flag-checkered" title="Resolved Items" value={myItems.filter((item) => item.status === 'resolved').length} /></div>
           <div className="dashboard-section-title"><h3><Icon name="list" /> My Reported Items</h3></div>
           <ItemGrid items={myItems} loading={myItemsLoading} onOpen={openItem} />
         </div>
@@ -365,7 +387,15 @@ function SiteApp({ user, token, onSession, onLogout, notify }) {
       {route === '#signup' && !user && <AuthPanel mode="signup" onSubmit={submitAuth} />}
 
       <footer className="site-footer"><div className="footer-inner"><div className="footer-brand"><Icon name="search-location" /> Lost<span>&amp;Found</span></div><p>© 2026 Lost &amp; Found System</p><p className="footer-sub">Helping reunite people with their belongings.</p></div></footer>
-      <ItemModal item={modalItem} loading={modalLoading} error={modalError} onClose={closeModal} />
+      <ItemModal
+        item={modalItem}
+        loading={modalLoading}
+        error={modalError}
+        onClose={closeModal}
+        canResolve={Boolean(user?.id && modalItem?.user?._id && String(modalItem.user._id) === String(user.id))}
+        resolving={resolvingItemId === modalItem?._id}
+        onResolve={resolveItem}
+      />
     </>
   );
 }

@@ -74,6 +74,35 @@ router.post('/', protect, upload.single('image'), async (req, res) => {
   }
 });
 
+// PATCH /api/items/:id/resolve — resolve an item and its matched listing
+router.patch('/:id/resolve', protect, async (req, res) => {
+  try {
+    const item = await Item.findById(req.params.id);
+    if (!item) return res.status(404).json({ success: false, message: 'Item not found' });
+
+    if (item.user.toString() !== req.user.id) {
+      return res.status(403).json({ success: false, message: 'Only the item owner can resolve this report' });
+    }
+
+    if (item.status === 'resolved') {
+      return res.status(409).json({ success: false, message: 'This item is already resolved' });
+    }
+
+    const itemIds = [item._id];
+    if (item.status === 'matched' && item.matchedWith) itemIds.push(item.matchedWith);
+
+    await Item.updateMany(
+      { _id: { $in: itemIds }, status: { $in: ['active', 'matched'] } },
+      { $set: { status: 'resolved' } }
+    );
+
+    const resolvedItem = await Item.findById(item._id).populate('matchedWith');
+    res.status(200).json({ success: true, message: 'Item marked as resolved', item: resolvedItem });
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Error resolving item', error: error.message });
+  }
+});
+
 // GET /api/items  — all items with optional filters
 router.get('/', async (req, res) => {
   try {
