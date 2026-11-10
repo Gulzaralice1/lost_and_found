@@ -1,0 +1,128 @@
+{
+  "users": [
+    {
+      "name": "John Doe",
+      "email": "john@example.com",
+      "password": "password123",
+      "phone": "+1234567890"
+    },
+    {
+      "name": "Jane Smith",
+      "email": "jane@example.com",
+      "password": "password123",
+      "phone": "+0987654321"
+    },
+    {
+      "name": "Mike Johnson",
+      "email": "mike@example.com",
+      "password": "password123",
+      "phone": "+1122334455"
+    }
+  ],
+  "lostItems": [
+    {
+      "type": "lost",
+      "title": "Black iPhone 13 Pro",
+      "description": "Lost my black iPhone 13 Pro with a blue protective case. Has a small scratch on the back. Last seen near the fountain.",
+      "category": "mobile",
+      "location": "Central Park, New York",
+      "date": "2024-01-15"
+    },
+    {
+      "type": "lost",
+      "title": "Brown Leather Wallet",
+      "description": "Brown leather wallet containing ID cards, credit cards, and some cash. Has my initials 'JD' embossed on it.",
+      "category": "wallet",
+      "location": "Times Square, New York",
+      "date": "2024-01-16"
+    },
+    {
+      "type": "lost",
+      "title": "Blue Backpack",
+      "description": "Blue Nike backpack with laptop inside. Contains important documents and a water bottle.",
+      "category": "bag",
+      "location": "Grand Central Station",
+      "date": "2024-01-17"
+    },
+    {
+      "type": "lost",
+      "title": "Car Keys with Toyota Keychain",
+      "description": "Set of car keys with a Toyota keychain and house keys attached. Has a red lanyard.",
+      "category": "keys",
+      "location": "Brooklyn Bridge",
+      "date": "2024-01-18"
+    },
+    {
+      "type": "lost",
+      "title": "Passport and Documents",
+      "description": "Lost my passport along with flight tickets and hotel booking documents in a brown envelope.",
+      "category": "documents",
+      "location": "JFK Airport",
+      "date": "2024-01-19"
+    }
+  ],
+  "foundItems": [
+    {
+      "type": "found",
+      "title": "iPhone with Blue Case",
+      "description": "Found an iPhone near the fountain. It has a blue case and appears to be an iPhone 13 model.",
+      "category": "mobile",
+      "location": "Central Park, New York",
+      "date": "2024-01-15"
+    },
+    {
+      "type": "found",
+      "title": "Leather Wallet",
+      "description": "Found a brown leather wallet with cards inside. Has initials on it.",
+      "category": "wallet",
+      "location": "Times Square, New York",
+      "date": "2024-01-16"
+    },
+    {
+      "type": "found",
+      "title": "Silver MacBook Pro",
+      "description": "Found a MacBook Pro 14-inch on a bench. Has some stickers on it.",
+      "category": "electronics",
+      "location": "Central Park, New York",
+      "date": "2024-01-20"
+    },
+    {
+      "type": "found",
+      "title": "Gold Ring",
+      "description": "Found a gold ring near the restroom. Appears to be a wedding band.",
+      "category": "jewelry",
+      "location": "Museum of Modern Art",
+      "date": "2024-01-21"
+    },
+    {
+      "type": "found",
+      "title": "Black Umbrella",
+      "description": "Found a black umbrella left on the subway. Automatic opening mechanism.",
+      "category": "other",
+      "location": "Subway Station - 42nd Street",
+      "date": "2024-01-22"
+    }
+  ],
+  "testScenarios": [
+    {
+      "scenario": "Perfect Match",
+      "description": "User A reports lost iPhone in Central Park, User B reports found iPhone in Central Park with same category",
+      "expectedResult": "System should automatically match both items and notify both users"
+    },
+    {
+      "scenario": "Partial Match",
+      "description": "User A reports lost wallet in Times Square, User B reports found wallet in Times Square",
+      "expectedResult": "System should match based on category and location"
+    },
+    {
+      "scenario": "No Match",
+      "description": "User A reports lost laptop in Brooklyn, no found laptops in Brooklyn",
+      "expectedResult": "Item remains active, no match notification"
+    },
+    {
+      "scenario": "Multiple Matches",
+      "description": "Multiple found items match a single lost item",
+      "expectedResult": "System shows all potential matches to the user"
+    }
+  ]
+}
