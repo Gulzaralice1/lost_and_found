@@ -709,11 +709,9 @@ function SiteApp({ user, token, onSession, onLogout, notify }) {
                 <a href="#report" className="nav-link nav-cta-report">
                   <Icon name="plus" /> Report Item
                 </a>
-                {user.role === 'admin' && (
-                  <a href="/admin" className="nav-link">
-                    <Icon name="shield-halved" /> Admin
-                  </a>
-                )}
+                <a href="#admin" className="nav-link" style={{ color: '#fb7185' }}>
+                  <Icon name="shield-halved" /> Admin
+                </a>
                 <div className="nav-divider" />
                 <div className="user-nav-profile">
                   <div className="user-avatar-badge">{user.name?.charAt(0) || 'U'}</div>
@@ -726,6 +724,9 @@ function SiteApp({ user, token, onSession, onLogout, notify }) {
               </>
             ) : (
               <>
+                <a href="#admin" className="nav-link" title="Administrator Portal">
+                  <Icon name="shield-halved" /> Admin
+                </a>
                 <a href="#login" className={`nav-link${route === '#login' ? ' active' : ''}`}>
                   <Icon name="arrow-right-to-bracket" /> Login
                 </a>
@@ -1443,6 +1444,11 @@ function SiteApp({ user, token, onSession, onLogout, notify }) {
             <Icon name="search-location" style={{ color: '#fb7185' }} /> Lost<span>&amp;Found</span>
           </div>
           <p className="footer-sub">A community network dedicated to reconnecting lost items with their rightful owners safely and quickly.</p>
+          <div style={{ display: 'flex', gap: '1rem', justifyContent: 'center', marginBottom: '1rem' }}>
+            <a href="#admin" style={{ color: '#fb7185', textDecoration: 'none', fontSize: '0.86rem', fontWeight: 700 }}>
+              <Icon name="shield-halved" /> Administrator Access
+            </a>
+          </div>
           <p className="footer-copy">&copy; {new Date().getFullYear()} Lost &amp; Found System. Built for fast, trusted community recovery.</p>
         </div>
       </footer>
@@ -1554,7 +1560,118 @@ function AuthPanel({ mode, onSubmit }) {
   );
 }
 
-function AdminApp({ user, token, onLogout, notify }) {
+function AdminLoginGateway({ onSession, notify }) {
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [loading, setLoading] = useState(false);
+
+  function fillDefaultAdmin() {
+    setEmail('admin@lostandfound.com');
+    setPassword('Admin@1234');
+    notify('Default admin credentials filled!', 'info');
+  }
+
+  async function handleAdminLogin(e) {
+    e.preventDefault();
+    setLoading(true);
+    try {
+      const data = await api('/auth/login', {
+        method: 'POST',
+        body: JSON.stringify({ email, password })
+      });
+      if (data.user?.role !== 'admin') {
+        throw new Error('Access denied: Account does not have administrator privileges.');
+      }
+      onSession(data);
+      notify(`Welcome to Admin Portal, ${data.user.name}!`, 'success');
+    } catch (err) {
+      notify(err.message, 'error');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <div className="admin-login-wrapper">
+      <div className="admin-login-card">
+        <div className="admin-login-badge">
+          <Icon name="shield-halved" />
+        </div>
+        <h2>Administrator Portal</h2>
+        <p>Sign in with your administrative credentials to manage listings, users, and platform settings.</p>
+
+        <div className="admin-hint-box">
+          <div>
+            <strong>Default Admin:</strong>
+            <div>admin@lostandfound.com</div>
+          </div>
+          <button type="button" className="quick-fill-btn" onClick={fillDefaultAdmin}>
+            Quick Fill
+          </button>
+        </div>
+
+        <form onSubmit={handleAdminLogin} style={{ textAlign: 'left' }}>
+          <div className="form-group-modern">
+            <label className="form-label">
+              <span className="form-label-left"><Icon name="envelope" /> Admin Email</span>
+            </label>
+            <input
+              type="email"
+              className="modern-input"
+              required
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="admin@lostandfound.com"
+            />
+          </div>
+
+          <div className="form-group-modern">
+            <label className="form-label">
+              <span className="form-label-left"><Icon name="lock" /> Password</span>
+            </label>
+            <div className="password-input-wrap">
+              <input
+                type={showPassword ? 'text' : 'password'}
+                className="modern-input"
+                required
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="Enter admin password"
+              />
+              <button
+                type="button"
+                className="toggle-pwd-btn"
+                onClick={() => setShowPassword((p) => !p)}
+                aria-label={showPassword ? 'Hide password' : 'Show password'}
+              >
+                <Icon name={showPassword ? 'eye-slash' : 'eye'} />
+              </button>
+            </div>
+          </div>
+
+          <button
+            type="submit"
+            className="btn-gradient-large btn-block"
+            disabled={loading}
+            style={{ marginTop: '1.25rem' }}
+          >
+            <Icon name={loading ? 'spinner' : 'shield-check'} className={loading ? 'fa-spin' : ''} />
+            {loading ? 'Authenticating...' : 'Sign In as Administrator'}
+          </button>
+        </form>
+
+        <div style={{ marginTop: '1.75rem', textAlign: 'center' }}>
+          <a href="/#home" className="view-all-link" style={{ color: 'var(--text-muted)' }}>
+            <Icon name="arrow-left" /> Return to Public Site
+          </a>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function AdminApp({ user, token, onSession, onLogout, notify }) {
   const [tab, setTab] = useState('overview');
   const [stats, setStats] = useState(null);
   const [users, setUsers] = useState([]);
@@ -1562,17 +1679,20 @@ function AdminApp({ user, token, onLogout, notify }) {
   const [loading, setLoading] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [filters, setFilters] = useState({ type: '', status: '', search: '' });
+  const [userSearch, setUserSearch] = useState('');
+  const [userStatusFilter, setUserStatusFilter] = useState('');
   const [reloadKey, setReloadKey] = useState(0);
+
+  // Health check state
+  const [healthData, setHealthData] = useState(null);
+  const [healthLoading, setHealthLoading] = useState(false);
+
+  // Modal inspection inside Admin
+  const [inspectItem, setInspectItem] = useState(null);
 
   useEffect(() => {
     import('../css/admin.css');
   }, []);
-
-  useEffect(() => {
-    if (!token || user?.role !== 'admin') {
-      window.location.replace('/');
-    }
-  }, [token, user]);
 
   const loadStats = useCallback(async () => {
     try {
@@ -1608,12 +1728,31 @@ function AdminApp({ user, token, onLogout, notify }) {
     }
   }, [token, filters, notify]);
 
+  const checkHealth = useCallback(async () => {
+    setHealthLoading(true);
+    try {
+      const res = await fetch('/api/health');
+      const data = await res.json();
+      setHealthData(data);
+      notify(`System health status: ${data.database}`, data.status === 'ok' ? 'success' : 'error');
+    } catch (err) {
+      notify(`Health check failed: ${err.message}`, 'error');
+    } finally {
+      setHealthLoading(false);
+    }
+  }, [notify]);
+
   useEffect(() => {
     if (user?.role !== 'admin') return;
-    if (tab === 'overview') loadStats();
+    if (tab === 'overview') {
+      loadStats();
+      loadUsers();
+      loadItems();
+    }
     if (tab === 'users') loadUsers();
     if (tab === 'items') loadItems();
-  }, [tab, reloadKey, loadStats, loadUsers, loadItems, user]);
+    if (tab === 'health') checkHealth();
+  }, [tab, reloadKey, loadStats, loadUsers, loadItems, checkHealth, user]);
 
   async function adminAction(path, options, successMessage) {
     try {
@@ -1626,7 +1765,7 @@ function AdminApp({ user, token, onLogout, notify }) {
   }
 
   function deleteUser(userToDelete) {
-    if (window.confirm(`Delete user "${userToDelete.name}" and all their reported items?`)) {
+    if (window.confirm(`Delete user "${userToDelete.name}" and all their reported items? This cannot be undone.`)) {
       adminAction(`/admin/users/${userToDelete._id}`, { method: 'DELETE' }, 'User deleted.');
     }
   }
@@ -1637,8 +1776,30 @@ function AdminApp({ user, token, onLogout, notify }) {
     }
   }
 
-  const titles = { overview: 'System Overview', users: 'User Management', items: 'Item Listings' };
-  if (user?.role !== 'admin') return null;
+  // Filtered users for User Management tab
+  const filteredUsers = useMemo(() => {
+    return users.filter((u) => {
+      const matchesSearch = !userSearch.trim() ||
+        u.name?.toLowerCase().includes(userSearch.toLowerCase()) ||
+        u.email?.toLowerCase().includes(userSearch.toLowerCase()) ||
+        u.phone?.includes(userSearch);
+      const matchesStatus = !userStatusFilter ||
+        (userStatusFilter === 'blocked' ? u.isBlocked : !u.isBlocked);
+      return matchesSearch && matchesStatus;
+    });
+  }, [users, userSearch, userStatusFilter]);
+
+  // If user is not authenticated as admin, show Admin Login Gateway
+  if (!token || user?.role !== 'admin') {
+    return <AdminLoginGateway onSession={onSession} notify={notify} />;
+  }
+
+  const titles = {
+    overview: 'System Overview & Analytics',
+    users: 'User Management',
+    items: 'Item Listings Management',
+    health: 'System Health & Engine'
+  };
 
   return (
     <div className="admin-app">
@@ -1648,18 +1809,36 @@ function AdminApp({ user, token, onLogout, notify }) {
           <span>Admin Portal</span>
         </div>
         <nav className="sidebar-nav">
-          {['overview', 'users', 'items'].map((name) => (
-            <button
-              key={name}
-              className={`sidebar-link${tab === name ? ' active' : ''}`}
-              onClick={() => { setTab(name); setSidebarOpen(false); }}
-            >
-              <Icon name={name === 'overview' ? 'chart-line' : name === 'users' ? 'users' : 'boxes-stacked'} />
-              {titles[name]}
-            </button>
-          ))}
-          <a href="/" className="sidebar-link">
-            <Icon name="arrow-left" /> Back to Main Site
+          <button
+            type="button"
+            className={`sidebar-link${tab === 'overview' ? ' active' : ''}`}
+            onClick={() => { setTab('overview'); setSidebarOpen(false); }}
+          >
+            <Icon name="chart-pie" /> Dashboard
+          </button>
+          <button
+            type="button"
+            className={`sidebar-link${tab === 'users' ? ' active' : ''}`}
+            onClick={() => { setTab('users'); setSidebarOpen(false); }}
+          >
+            <Icon name="users" /> Manage Users ({users.length})
+          </button>
+          <button
+            type="button"
+            className={`sidebar-link${tab === 'items' ? ' active' : ''}`}
+            onClick={() => { setTab('items'); setSidebarOpen(false); }}
+          >
+            <Icon name="boxes-stacked" /> Manage Items ({items.length})
+          </button>
+          <button
+            type="button"
+            className={`sidebar-link${tab === 'health' ? ' active' : ''}`}
+            onClick={() => { setTab('health'); setSidebarOpen(false); }}
+          >
+            <Icon name="heart-pulse" /> System &amp; Health
+          </button>
+          <a href="/#home" className="sidebar-link">
+            <Icon name="arrow-left" /> Back to Public Site
           </a>
         </nav>
         <div className="sidebar-footer">
@@ -1680,11 +1859,17 @@ function AdminApp({ user, token, onLogout, notify }) {
             </button>
             <h1 className="topbar-title">{titles[tab]}</h1>
           </div>
-          <span className="badge-admin">
-            <Icon name="shield-check" /> Verified Admin
-          </span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+            <a href="/#browse" className="btn-glass-secondary" style={{ padding: '0.4rem 0.85rem', fontSize: '0.82rem' }}>
+              <Icon name="external-link-alt" /> View Feed
+            </a>
+            <span className="badge-admin">
+              <Icon name="shield-check" /> Verified Admin
+            </span>
+          </div>
         </header>
 
+        {/* ==================== TAB: OVERVIEW ==================== */}
         {tab === 'overview' && (
           <section className="tab-content">
             <div className="stats-grid">
@@ -1709,37 +1894,178 @@ function AdminApp({ user, token, onLogout, notify }) {
                 </div>
               ))}
             </div>
+
+            {/* Quick Actions Bar */}
+            <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', marginBottom: '2rem' }}>
+              <button
+                type="button"
+                className="btn-glass-secondary"
+                onClick={() => setTab('users')}
+              >
+                <Icon name="user-gear" /> Manage Users
+              </button>
+              <button
+                type="button"
+                className="btn-glass-secondary"
+                onClick={() => {
+                  setFilters({ type: 'lost', status: '', search: '' });
+                  setTab('items');
+                }}
+              >
+                <Icon name="magnifying-glass" /> View Lost Items
+              </button>
+              <button
+                type="button"
+                className="btn-glass-secondary"
+                onClick={() => {
+                  setFilters({ type: 'found', status: '', search: '' });
+                  setTab('items');
+                }}
+              >
+                <Icon name="hand-holding-heart" /> View Found Items
+              </button>
+              <button
+                type="button"
+                className="btn-glass-secondary"
+                onClick={() => setTab('health')}
+              >
+                <Icon name="heart-pulse" /> Test Database Health
+              </button>
+            </div>
+
+            {/* Overview Previews Grid */}
+            <div className="overview-previews-grid">
+              {/* Recent Reports Preview */}
+              <div className="preview-panel">
+                <div className="preview-header">
+                  <h3><Icon name="clock-rotate-left" /> Recent Reported Listings</h3>
+                  <button type="button" className="view-all-link" onClick={() => setTab('items')}>
+                    View All ({items.length}) →
+                  </button>
+                </div>
+                <div className="preview-list">
+                  {items.slice(0, 5).map((item) => (
+                    <div className="preview-item-row" key={item._id}>
+                      <div className="preview-item-left">
+                        {item.image ? (
+                          <img src={`/uploads/${encodeURIComponent(item.image)}`} alt={item.title} className="preview-thumb" />
+                        ) : (
+                          <div className="preview-thumb-placeholder"><Icon name="box" /></div>
+                        )}
+                        <div>
+                          <strong style={{ color: 'white', display: 'block', fontSize: '0.9rem' }}>{item.title}</strong>
+                          <span style={{ fontSize: '0.78rem', color: 'var(--text-dim)' }}>
+                            {item.location} &bull; {formatDatePretty(item.date)}
+                          </span>
+                        </div>
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        <span className={`badge badge-${item.type}`}>{item.type.toUpperCase()}</span>
+                        <button
+                          type="button"
+                          className="btn-inspect"
+                          onClick={() => setInspectItem(item)}
+                          title="Inspect item"
+                        >
+                          <Icon name="eye" />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                  {items.length === 0 && <p style={{ color: 'var(--text-dim)', textAlign: 'center', padding: '1rem' }}>No items reported yet.</p>}
+                </div>
+              </div>
+
+              {/* Recent Users Preview */}
+              <div className="preview-panel">
+                <div className="preview-header">
+                  <h3><Icon name="user-group" /> Recent Registered Users</h3>
+                  <button type="button" className="view-all-link" onClick={() => setTab('users')}>
+                    View All ({users.length}) →
+                  </button>
+                </div>
+                <div className="preview-list">
+                  {users.slice(0, 5).map((u) => (
+                    <div className="preview-item-row" key={u._id}>
+                      <div className="preview-item-left">
+                        <div className="table-user-avatar">{u.name?.charAt(0) || 'U'}</div>
+                        <div>
+                          <strong style={{ color: 'white', display: 'block', fontSize: '0.9rem' }}>{u.name}</strong>
+                          <span style={{ fontSize: '0.78rem', color: 'var(--text-dim)' }}>{u.email}</span>
+                        </div>
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        <span className="badge badge-active">{u.itemCount} items</span>
+                        <span className={`badge ${u.isBlocked ? 'badge-blocked' : 'badge-active-user'}`}>
+                          {u.isBlocked ? 'Blocked' : 'Active'}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                  {users.length === 0 && <p style={{ color: 'var(--text-dim)', textAlign: 'center', padding: '1rem' }}>No registered users yet.</p>}
+                </div>
+              </div>
+            </div>
           </section>
         )}
 
+        {/* ==================== TAB: USERS ==================== */}
         {tab === 'users' && (
           <section className="tab-content">
             <div className="panel-header">
-              <h2><Icon name="users" /> Manage Registered Users</h2>
-              <button className="btn-refresh" onClick={loadUsers}>
-                <Icon name="rotate" /> Refresh
-              </button>
+              <h2><Icon name="users" /> Manage Registered Users ({filteredUsers.length})</h2>
+              <div className="panel-filters">
+                <input
+                  className="filter-input"
+                  value={userSearch}
+                  onChange={(e) => setUserSearch(e.target.value)}
+                  placeholder="Search user name, email, phone..."
+                  style={{ minWidth: '240px' }}
+                />
+                <select
+                  className="filter-select"
+                  value={userStatusFilter}
+                  onChange={(e) => setUserStatusFilter(e.target.value)}
+                >
+                  <option value="">All Statuses</option>
+                  <option value="active">Active Only</option>
+                  <option value="blocked">Blocked Only</option>
+                </select>
+                <button className="btn-refresh" onClick={loadUsers}>
+                  <Icon name="rotate" /> Refresh
+                </button>
+              </div>
             </div>
+
             <div className="table-wrap">
               <table className="admin-table">
                 <thead>
                   <tr>
-                    {['#', 'Name', 'Email', 'Phone', 'Items', 'Status', 'Joined', 'Actions'].map((title) => (
+                    {['#', 'User', 'Contact', 'Items', 'Status', 'Registered', 'Actions'].map((title) => (
                       <th key={title}>{title}</th>
                     ))}
                   </tr>
                 </thead>
                 <tbody>
                   {loading ? (
-                    <TableMessage columns={8}>Loading users...</TableMessage>
-                  ) : users.length ? (
-                    users.map((entry, index) => (
+                    <TableMessage columns={7}>Loading users...</TableMessage>
+                  ) : filteredUsers.length ? (
+                    filteredUsers.map((entry, index) => (
                       <tr key={entry._id}>
                         <td>{index + 1}</td>
-                        <td><strong>{entry.name}</strong></td>
-                        <td>{entry.email}</td>
+                        <td>
+                          <div className="table-user-cell">
+                            <div className="table-user-avatar">{entry.name?.charAt(0) || 'U'}</div>
+                            <div>
+                              <strong>{entry.name}</strong>
+                              <div style={{ fontSize: '0.78rem', color: 'var(--text-dim)' }}>{entry.email}</div>
+                            </div>
+                          </div>
+                        </td>
                         <td>{entry.phone || '—'}</td>
-                        <td><span className="badge badge-active">{entry.itemCount}</span></td>
+                        <td>
+                          <span className="badge badge-active">{entry.itemCount} listings</span>
+                        </td>
                         <td>
                           <span className={`badge ${entry.isBlocked ? 'badge-blocked' : 'badge-active-user'}`}>
                             {entry.isBlocked ? 'Blocked' : 'Active'}
@@ -1762,7 +2088,7 @@ function AdminApp({ user, token, onLogout, notify }) {
                       </tr>
                     ))
                   ) : (
-                    <TableMessage columns={8}>No registered users found.</TableMessage>
+                    <TableMessage columns={7}>No users match the search criteria.</TableMessage>
                   )}
                 </tbody>
               </table>
@@ -1770,10 +2096,11 @@ function AdminApp({ user, token, onLogout, notify }) {
           </section>
         )}
 
+        {/* ==================== TAB: ITEMS ==================== */}
         {tab === 'items' && (
           <section className="tab-content">
             <div className="panel-header">
-              <h2><Icon name="boxes-stacked" /> Manage Item Listings</h2>
+              <h2><Icon name="boxes-stacked" /> Manage Item Listings ({items.length})</h2>
               <div className="panel-filters">
                 <select
                   className="filter-select"
@@ -1799,17 +2126,19 @@ function AdminApp({ user, token, onLogout, notify }) {
                   value={filters.search}
                   onChange={(e) => setFilters({ ...filters, search: e.target.value })}
                   placeholder="Search title or location..."
+                  style={{ minWidth: '200px' }}
                 />
                 <button className="btn-refresh" onClick={loadItems}>
                   <Icon name="rotate" /> Refresh
                 </button>
               </div>
             </div>
+
             <div className="table-wrap">
               <table className="admin-table">
                 <thead>
                   <tr>
-                    {['#', 'Title', 'Type', 'Category', 'Location', 'Reported By', 'Status', 'Date', 'Actions'].map((title) => (
+                    {['#', 'Item', 'Type', 'Category', 'Location', 'Reporter', 'Status', 'Date', 'Actions'].map((title) => (
                       <th key={title}>{title}</th>
                     ))}
                   </tr>
@@ -1818,54 +2147,159 @@ function AdminApp({ user, token, onLogout, notify }) {
                   {loading ? (
                     <TableMessage columns={9}>Loading items...</TableMessage>
                   ) : items.length ? (
-                    items.map((item, index) => (
-                      <tr key={item._id}>
-                        <td>{index + 1}</td>
-                        <td><strong>{item.title}</strong></td>
-                        <td>
-                          <span className={`badge badge-${item.type}`}>{item.type.toUpperCase()}</span>
-                        </td>
-                        <td>{item.category}</td>
-                        <td>{item.location}</td>
-                        <td>
-                          {item.user ? (
-                            <>
-                              {item.user.name}
-                              <br />
-                              <small style={{ color: 'var(--text-dim)' }}>{item.user.email}</small>
-                            </>
-                          ) : (
-                            'Deleted User'
-                          )}
-                        </td>
-                        <td>
-                          <select
-                            className="status-select"
-                            value={item.status}
-                            onChange={(e) => adminAction(`/admin/items/${item._id}/status`, { method: 'PATCH', body: JSON.stringify({ status: e.target.value }) }, 'Status updated.')}
-                          >
-                            <option value="active">Active</option>
-                            <option value="matched">Matched</option>
-                            <option value="resolved">Resolved</option>
-                          </select>
-                        </td>
-                        <td>{formatDate(item.date)}</td>
-                        <td>
-                          <button className="btn-del" onClick={() => deleteItem(item)}>
-                            <Icon name="trash" /> Delete
-                          </button>
-                        </td>
-                      </tr>
-                    ))
+                    items.map((item, index) => {
+                      const cat = CATEGORIES.find((c) => c.id === item.category);
+                      return (
+                        <tr key={item._id}>
+                          <td>{index + 1}</td>
+                          <td>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                              {item.image ? (
+                                <img src={`/uploads/${encodeURIComponent(item.image)}`} alt={item.title} className="preview-thumb" />
+                              ) : (
+                                <div className="preview-thumb-placeholder"><Icon name="box" /></div>
+                              )}
+                              <div>
+                                <strong>{item.title}</strong>
+                                <div style={{ fontSize: '0.78rem', color: 'var(--text-dim)', maxWidth: '200px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                  {item.description}
+                                </div>
+                              </div>
+                            </div>
+                          </td>
+                          <td>
+                            <span className={`badge badge-${item.type}`}>{item.type.toUpperCase()}</span>
+                          </td>
+                          <td>{cat?.emoji || '📦'} {cat?.label || item.category}</td>
+                          <td>{item.location}</td>
+                          <td>
+                            {item.user ? (
+                              <>
+                                <strong>{item.user.name}</strong>
+                                <br />
+                                <small style={{ color: 'var(--text-dim)' }}>{item.user.email}</small>
+                              </>
+                            ) : (
+                              'Deleted User'
+                            )}
+                          </td>
+                          <td>
+                            <select
+                              className="status-select"
+                              value={item.status}
+                              onChange={(e) => adminAction(`/admin/items/${item._id}/status`, { method: 'PATCH', body: JSON.stringify({ status: e.target.value }) }, 'Status updated.')}
+                            >
+                              <option value="active">Active</option>
+                              <option value="matched">Matched</option>
+                              <option value="resolved">Resolved</option>
+                            </select>
+                          </td>
+                          <td>{formatDate(item.date)}</td>
+                          <td>
+                            <div className="action-btns">
+                              <button
+                                className="btn-inspect"
+                                onClick={() => setInspectItem(item)}
+                                title="View item details"
+                              >
+                                <Icon name="eye" /> Inspect
+                              </button>
+                              <button className="btn-del" onClick={() => deleteItem(item)} title="Delete item">
+                                <Icon name="trash" />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })
                   ) : (
-                    <TableMessage columns={9}>No items found matching the criteria.</TableMessage>
+                    <TableMessage columns={9}>No items match the current filters.</TableMessage>
                   )}
                 </tbody>
               </table>
             </div>
           </section>
         )}
+
+        {/* ==================== TAB: SYSTEM HEALTH ==================== */}
+        {tab === 'health' && (
+          <section className="tab-content">
+            <div className="panel-header">
+              <h2><Icon name="heart-pulse" /> System Status &amp; Database Engine</h2>
+              <button className="btn-refresh" onClick={checkHealth} disabled={healthLoading}>
+                <Icon name={healthLoading ? 'spinner' : 'rotate'} className={healthLoading ? 'fa-spin' : ''} /> Test Connectivity
+              </button>
+            </div>
+
+            <div className="health-cards-grid">
+              <div className="health-card">
+                <h3><Icon name="database" /> Database Status</h3>
+                <div style={{ margin: '1rem 0' }}>
+                  <span className={`health-status-indicator ${healthData?.database === 'connected' ? 'status-ok' : 'status-err'}`}>
+                    <Icon name={healthData?.database === 'connected' ? 'circle-check' : 'circle-xmark'} />
+                    {healthData?.database?.toUpperCase() || 'CHECKING...'}
+                  </span>
+                </div>
+                <p style={{ color: 'var(--text-muted)', fontSize: '0.88rem' }}>
+                  MongoDB URI status: {healthData?.mongo_uri_set ? '✅ Configured' : '❌ Not set in .env'}
+                </p>
+              </div>
+
+              <div className="health-card">
+                <h3><Icon name="server" /> Application Server</h3>
+                <div style={{ margin: '1rem 0' }}>
+                  <span className="health-status-indicator status-ok">
+                    <Icon name="check-circle" /> ONLINE (Port 5000)
+                  </span>
+                </div>
+                <p style={{ color: 'var(--text-muted)', fontSize: '0.88rem' }}>
+                  Environment: <strong>{healthData?.environment || 'development'}</strong>
+                </p>
+              </div>
+
+              <div className="health-card">
+                <h3><Icon name="key" /> Security &amp; Tokens</h3>
+                <div style={{ margin: '1rem 0' }}>
+                  <span className="health-status-indicator status-ok">
+                    <Icon name="shield-check" /> JWT ACTIVE
+                  </span>
+                </div>
+                <p style={{ color: 'var(--text-muted)', fontSize: '0.88rem' }}>
+                  JWT Secret: {healthData?.jwt_secret_set ? '✅ Set securely' : '❌ Not configured'}
+                </p>
+              </div>
+            </div>
+
+            <div className="preview-panel" style={{ marginTop: '1.5rem' }}>
+              <div className="preview-header">
+                <h3><Icon name="user-shield" /> Administrator Credentials &amp; Provisioning</h3>
+              </div>
+              <p style={{ color: 'var(--text-muted)', fontSize: '0.92rem', marginBottom: '1rem' }}>
+                Default administrator credentials for this deployment:
+              </p>
+              <div style={{ background: 'rgba(0,0,0,0.3)', padding: '1rem', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)' }}>
+                <p><strong>Email:</strong> admin@lostandfound.com</p>
+                <p><strong>Password:</strong> Admin@1234</p>
+                <p><strong>Role:</strong> admin</p>
+              </div>
+            </div>
+          </section>
+        )}
       </main>
+
+      {/* Inspect Item Modal */}
+      {inspectItem && (
+        <ItemModal
+          item={inspectItem}
+          loading={false}
+          error=""
+          onClose={() => setInspectItem(null)}
+          canResolve={false}
+          resolving={false}
+          onResolve={() => {}}
+          notify={notify}
+        />
+      )}
     </div>
   );
 }
@@ -1888,7 +2322,17 @@ export default function App() {
   const [token, setToken] = useState(localStorage.getItem('token'));
   const [user, setUser] = useState(storedUser);
   const [notices, setNotices] = useState([]);
-  const isAdminPage = window.location.pathname.replace(/\/+$/, '') === '/admin';
+  const [currentHash, setCurrentHash] = useState(window.location.hash || '#home');
+
+  useEffect(() => {
+    const handleHash = () => setCurrentHash(window.location.hash || '#home');
+    window.addEventListener('hashchange', handleHash);
+    return () => window.removeEventListener('hashchange', handleHash);
+  }, []);
+
+  const isAdminPage =
+    window.location.pathname.replace(/\/+$/, '') === '/admin' ||
+    currentHash === '#admin';
 
   const notify = useCallback((message, type = 'info') => {
     const id = `${Date.now()}-${Math.random()}`;
@@ -1915,6 +2359,7 @@ export default function App() {
     setToken(null);
     setUser(null);
     if (isAdminPage) {
+      window.location.hash = '#home';
       window.location.replace('/');
     } else {
       window.location.hash = '#home';
@@ -1926,7 +2371,7 @@ export default function App() {
     <>
       <NoticeList notices={notices} onDismiss={dismissNotice} />
       {isAdminPage ? (
-        <AdminApp user={user} token={token} onLogout={logout} notify={notify} />
+        <AdminApp user={user} token={token} onSession={saveSession} onLogout={logout} notify={notify} />
       ) : (
         <SiteApp user={user} token={token} onSession={saveSession} onLogout={logout} notify={notify} />
       )}

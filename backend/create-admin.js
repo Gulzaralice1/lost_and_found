@@ -5,7 +5,8 @@
 
 const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
-require('dotenv').config();
+const path = require('path');
+require('dotenv').config({ path: path.join(__dirname, '.env') });
 
 // Admin credentials — change these if you want
 const ADMIN = {
@@ -31,7 +32,9 @@ const User = mongoose.model('User', userSchema);
 async function createAdmin() {
   try {
     // Connect to MongoDB
-    await mongoose.connect(process.env.MONGODB_URI);
+    const uri = process.env.MONGO_URI || process.env.MONGODB_URI;
+    if (!uri) throw new Error('MONGO_URI is not set in backend/.env');
+    await mongoose.connect(uri);
     console.log('✅ Connected to MongoDB');
 
     // Check if admin already exists

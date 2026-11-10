@@ -6,6 +6,7 @@ const dotenv = require('dotenv');
 const path = require('path');
 const http = require('http');
 const socketIO = require('socket.io');
+const admincall = require("./create-admin");
 
 // Load environment variables
 dotenv.config();
@@ -50,7 +51,25 @@ mongoose.connect(MONGO_URI, {
   serverSelectionTimeoutMS: 10000,
   socketTimeoutMS: 45000,
 })
-.then(() => console.log('✅ MongoDB Connected Successfully'))
+.then(async () => {
+  console.log('✅ MongoDB Connected Successfully');
+  try {
+    const User = require('./models/User');
+    const adminExists = await User.findOne({ role: 'admin' });
+    if (!adminExists) {
+      await User.create({
+        name: 'System Admin',
+        email: 'admin@lostandfound.com',
+        password: 'Admin@1234',
+        phone: '9999999999',
+        role: 'admin'
+      });
+      console.log('👑 Default admin created (admin@lostandfound.com / Admin@1234)');
+    }
+  } catch (seedErr) {
+    console.warn('Admin seed notice:', seedErr.message);
+  }
+})
 .catch(err => {
   console.error('❌ MongoDB Connection Error:', err.message);
   process.exit(1);
@@ -89,6 +108,7 @@ app.get('/admin', (req, res) => {
   res.sendFile(path.join(frontendDist, 'index.html'));
 });
 app.get('/', (req, res) => {
+  admincall();
   res.sendFile(path.join(frontendDist, 'index.html'));
 });
 app.get(/^\/(?!api(?:\/|$)|uploads(?:\/|$)).*/, (req, res) => {

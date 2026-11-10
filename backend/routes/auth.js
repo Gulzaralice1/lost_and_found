@@ -11,6 +11,36 @@ const generateToken = (id) => {
   });
 };
 
+// @route   POST /api/auth/setup-admin
+// @desc    Ensure an initial admin exists if none exists
+// @access  Public
+router.post('/setup-admin', async (req, res) => {
+  try {
+    const adminExists = await User.findOne({ role: 'admin' });
+    if (adminExists) {
+      return res.status(200).json({
+        success: true,
+        message: 'Admin account already exists',
+        email: adminExists.email
+      });
+    }
+    const admin = await User.create({
+      name: 'System Admin',
+      email: 'admin@lostandfound.com',
+      password: 'Admin@1234',
+      phone: '9999999999',
+      role: 'admin'
+    });
+    res.status(201).json({
+      success: true,
+      message: 'Default admin account created successfully',
+      email: admin.email
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
 // @route   POST /api/auth/signup
 // @desc    Register a new user
 // @access  Public
